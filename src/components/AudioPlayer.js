@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import '../styles/App.css';
 
 const AudioPlayer = ({ audioUrl }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
   const [filterApplied, setFilterApplied] = useState(null);
+  const [error, setError] = useState(null);
   const audioContextRef = useRef(null);
   const audioElementRef = useRef(null);
   const sourceNodeRef = useRef(null);
@@ -13,51 +15,51 @@ const AudioPlayer = ({ audioUrl }) => {
   const feedbackGainRef = useRef(null);
   const speedIntervalRef = useRef(null);
 
-  
+  // Định nghĩa các bộ lọc âm thanh
   const audioFilters = [
     {
       name: 'Normal',
       apply: (audioContext, sourceNode) => {
-        
+        // Không áp dụng bộ lọc nào
         return sourceNode;
       }
     },
     {
       name: 'Echo',
       apply: (audioContext, sourceNode) => {
-       
+        // Tạo delay node với thời gian delay ngắn hơn
         const delay = audioContext.createDelay();
-        delay.delayTime.value = 0.3; 
+        delay.delayTime.value = 0.3; // Giảm thời gian delay từ 0.5 xuống 0.3
         
-        
+        // Tạo feedback gain với giá trị nhỏ hơn
         const feedback = audioContext.createGain();
-        feedback.gain.value = 0.2; 
+        feedback.gain.value = 0.2; // Giảm feedback từ 0.3 xuống 0.2
         
-       
+        // Tạo filter để làm mềm âm thanh echo
         const filter = audioContext.createBiquadFilter();
         filter.type = 'lowpass';
         filter.frequency.value = 800;
         filter.Q.value = 0.5;
         
-       
+        // Lưu trữ các node để có thể dừng chúng sau này
         delayNodeRef.current = delay;
         feedbackGainRef.current = feedback;
         
- 
+        // Kết nối các node
         sourceNode.connect(delay);
         delay.connect(feedback);
         feedback.connect(delay);
         delay.connect(filter);
         filter.connect(audioContext.destination);
         
-        
+        // Thêm sự kiện khi audio kết thúc để dừng echo
         audioElementRef.current.addEventListener('ended', () => {
-          
+          // Dừng feedback loop
           if (feedbackGainRef.current) {
             feedbackGainRef.current.gain.value = 0;
           }
           
-          
+          // Dừng delay sau một khoảng thời gian ngắn
           setTimeout(() => {
             if (delayNodeRef.current) {
               delayNodeRef.current.disconnect();
@@ -198,26 +200,124 @@ const AudioPlayer = ({ audioUrl }) => {
     }
   ];
 
-  
+  // Hàm lấy bộ lọc ngẫu nhiên
   const getRandomFilter = () => {
     const randomIndex = Math.floor(Math.random() * audioFilters.length);
     return audioFilters[randomIndex];
   };
 
-  
-  const initAudio = () => {
+  // Hàm dọn dẹp tài nguyên
+  const cleanupResources = () => {
     try {
+      // Dừng interval nếu có
+      if (speedIntervalRef.current) {
+        clearInterval(speedIntervalRef.current);
+        speedIntervalRef.current = null;
+      }
       
+      // Ngắt kết nối các node
+      if (delayNodeRef.current) {
+        delayNodeRef.current.disconnect();
+        delayNodeRef.current = null;
+      }
+      
+      if (feedbackGainRef.current) {
+        feedbackGainRef.current.disconnect();
+        feedbackGainRef.current = null;
+      }
+      
+      if (filterNodeRef.current) {
+        filterNodeRef.current.disconnect();
+        filterNodeRef.current = null;
+      }
+      
+      if (gainNodeRef.current) {
+        gainNodeRef.current.disconnect();
+        gainNodeRef.current = null;
+      }
+      
+      if (sourceNodeRef.current) {
+        sourceNodeRef.current.disconnect();
+        sourceNodeRef.current = null;
+      }
+      
+      // Dừng và xóa audio element
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        // Không xóa src để tránh lỗi Empty src attribute
+        // audioElementRef.current.src = '';
+        audioElementRef.current = null;
+      }
+      
+      // Đóng audio context
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+    }
+  };
+
+  // Khởi tạo audio context và audio element
+  const initAudio = () => {
+    // Kiểm tra audioUrl
+    if (!audioUrl) {
+      setError('No audio URL provided');
+      return;
+    }
+    
+    try {
+      // Dọn dẹp tài nguyên cũ nếu có
+      cleanupResources();
+      
+      // Tạo audio context
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       audioContextRef.current = new AudioContext();
+      
       // Tạo audio element
       audioElementRef.current = new Audio();
       
+      // Xử lý đường dẫn audio
+      let fullAudioUrl = audioUrl;
       
-      audioElementRef.current.src = audioUrl;
+      // Nếu đường dẫn không bắt đầu bằng /audio/, thêm vào
+      if (!fullAudioUrl.startsWith('/audio/')) {
+        fullAudioUrl = `/audio/${fullAudioUrl}`;
+      }
+      
+      // Nếu đường dẫn không bắt đầu bằng /, thêm vào
+      if (!fullAudioUrl.startsWith('/')) {
+        fullAudioUrl = `/${fullAudioUrl}`;
+      }
+      
+      console.log('Loading audio from:', fullAudioUrl);
+      
+      // Thiết lập src cho audio element
+      audioElementRef.current.src = fullAudioUrl;
+      
+      // Kiểm tra lại src đã được thiết lập
+      if (!audioElementRef.current.src || audioElementRef.current.src === '') {
+        console.error('Failed to set audio src');
+        setError('Error: Failed to set audio source');
+        return;
+      }
       
       // Thêm thuộc tính crossorigin
       audioElementRef.current.crossOrigin = "anonymous";
+      
+      // Thêm sự kiện lỗi trước khi tạo source node
+      audioElementRef.current.addEventListener('error', (e) => {
+        console.error('Audio error:', e);
+        const errorMessage = e.target.error ? e.target.error.message : 'Unknown error';
+        console.error('Error details:', errorMessage);
+        setError(`Error loading audio file: ${errorMessage}`);
+      });
+      
+      // Thêm sự kiện khi audio kết thúc
+      audioElementRef.current.addEventListener('ended', () => {
+        setIsPlaying(false);
+      });
       
       // Tạo source node
       sourceNodeRef.current = audioContextRef.current.createMediaElementSource(audioElementRef.current);
@@ -239,47 +339,61 @@ const AudioPlayer = ({ audioUrl }) => {
       // Áp dụng bộ lọc
       filterNodeRef.current = randomFilter.apply(audioContextRef.current, sourceNodeRef.current);
       
-      // Thêm sự kiện khi audio kết thúc
-      audioElementRef.current.addEventListener('ended', () => {
-        setHasPlayed(false);
-      });
-      
       console.log('Audio initialized successfully');
+      setError(null);
     } catch (error) {
       console.error('Error initializing audio:', error);
+      setError('Error initializing audio: ' + error.message);
     }
   };
 
-  // Khởi tạo audio khi component mount
+  // Khởi tạo audio khi component mount hoặc audioUrl thay đổi
   useEffect(() => {
-    initAudio();
+    // Đảm bảo audioUrl có giá trị trước khi khởi tạo
+    if (audioUrl) {
+      initAudio();
+    } else {
+      setError('No audio URL provided');
+    }
     
     // Cleanup function
     return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-      if (audioElementRef.current) {
-        audioElementRef.current.pause();
-        audioElementRef.current.src = '';
-      }
-      // Dừng interval nếu có
-      if (speedIntervalRef.current) {
-        clearInterval(speedIntervalRef.current);
-        speedIntervalRef.current = null;
-      }
+      cleanupResources();
     };
   }, [audioUrl]);
 
   // Reset trạng thái khi audioUrl thay đổi
   useEffect(() => {
     setHasPlayed(false);
+    setIsPlaying(false);
+    setError(null);
   }, [audioUrl]);
 
   // Hàm phát âm thanh
   const playAudio = () => {
     if (!hasPlayed && audioElementRef.current && audioContextRef.current) {
       try {
+        // Kiểm tra lại src của audio element
+        if (!audioElementRef.current.src || audioElementRef.current.src === '') {
+          // Nếu src trống, thiết lập lại
+          let fullAudioUrl = audioUrl;
+          if (!fullAudioUrl.startsWith('/audio/')) {
+            fullAudioUrl = `/audio/${fullAudioUrl}`;
+          }
+          if (!fullAudioUrl.startsWith('/')) {
+            fullAudioUrl = `/${fullAudioUrl}`;
+          }
+          audioElementRef.current.src = fullAudioUrl;
+          console.log('Reset audio src to:', fullAudioUrl);
+        }
+        
+        // Kiểm tra lại một lần nữa để đảm bảo src đã được thiết lập
+        if (!audioElementRef.current.src || audioElementRef.current.src === '') {
+          console.error('Audio src is still empty after reset');
+          setError('Error: Audio source is empty');
+          return;
+        }
+        
         // Đảm bảo audio context đang hoạt động
         if (audioContextRef.current.state === 'suspended') {
           audioContextRef.current.resume();
@@ -287,11 +401,13 @@ const AudioPlayer = ({ audioUrl }) => {
         
         // Phát âm thanh
         audioElementRef.current.play();
+        setIsPlaying(true);
         setHasPlayed(true);
         
         console.log('Playing audio with filter:', filterApplied.name);
       } catch (error) {
         console.error('Error playing audio:', error);
+        setError('Error playing audio: ' + error.message);
       }
     }
   };
@@ -300,7 +416,7 @@ const AudioPlayer = ({ audioUrl }) => {
     <div className="audio-player">
       <button 
         onClick={playAudio} 
-        disabled={hasPlayed}
+        disabled={hasPlayed || error}
         className={hasPlayed ? 'played' : ''}
       >
         {hasPlayed ? 'Played' : 'Play'}
@@ -308,6 +424,11 @@ const AudioPlayer = ({ audioUrl }) => {
       {filterApplied && (
         <div className="filter-info">
           Filter applied: {filterApplied.name}
+        </div>
+      )}
+      {error && (
+        <div className="error-message">
+          {error}
         </div>
       )}
     </div>

@@ -24,7 +24,10 @@ export function CheckUserExist({ children }){
 export const getServerData = async (url, callback) => {
   try {
     // Sử dụng đường dẫn tương đối để proxy sẽ xử lý
-    const response = await axios.get(url);
+    // Kiểm tra nếu url đã có tiền tố /api/ thì không thêm nữa
+    const apiUrl = url.startsWith('/api/') ? url : `/api/${url}`;
+    console.log('Fetching data from:', apiUrl);
+    const response = await axios.get(apiUrl);
     if (callback) callback(response.data);
     return response.data;
   } catch (error) {
@@ -37,7 +40,10 @@ export const getServerData = async (url, callback) => {
 export const postServerData = async (url, result, callback) => {
   try {
     // Sử dụng đường dẫn tương đối để proxy sẽ xử lý
-    const response = await axios.post(url, result);
+    // Kiểm tra nếu url đã có tiền tố /api/ thì không thêm nữa
+    const apiUrl = url.startsWith('/api/') ? url : `/api/${url}`;
+    console.log('Posting data to:', apiUrl);
+    const response = await axios.post(apiUrl, result);
     if (callback) callback(response.data);
     return response.data;
   } catch (error) {

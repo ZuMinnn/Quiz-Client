@@ -183,31 +183,47 @@ input[type=radio]:checked ~ .text-primary{
   background: var(--primary-color)
 }
 .audio-player {
-  margin: 20px 0;
-  padding: 15px;
-  background-color: #333;
-  border-radius: 5px;
-  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px 0;
 }
 
 .audio-player button {
-  background-color: #0DFF92;
-  color: #222;
+  padding: 8px 16px;
+  background-color: #4CAF50;
+  color: white;
   border: none;
-  padding: 8px 15px;
-  margin: 5px;
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s;
 }
 
 .audio-player button:hover {
-  background-color: #0cc77a;
+  background-color: #45a049;
+}
+
+.audio-player button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 .audio-player button.played {
-  background-color: #888;
-  cursor: not-allowed;
-  opacity: 0.7;
+  background-color: #888888;
+}
+
+.filter-info {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+.error-message {
+  margin-top: 8px;
+  color: #f44336;
+  font-size: 14px;
+  text-align: center;
 }
 
 .control-group {
@@ -223,10 +239,4 @@ input[type=radio]:checked ~ .text-primary{
 
 .control-group input[type="range"] {
   flex: 1;
-}
-
-.filter-info {
-  margin-top: 10px;
-  font-size: 0.9em;
-  color: #0DFF92;
 }
